@@ -1,8 +1,0 @@
-server:
-  port: 8123
-  servlet:
-    context-Path: /api
-zapi:
-  client:
-    access-key: zlz
-    secret-key: zlzAdmin

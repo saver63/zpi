@@ -49,6 +49,11 @@ public class InterfaceInfoUpdateRequest implements Serializable {
     private String responseHeader;
 
     /**
+     * 请求参数
+     */
+    private String requestParams;
+
+    /**
      * 接口状态
      */
     private Integer interfaceStatus;

@@ -101,3 +101,7 @@ knife4j:
         api-rule: package
         api-rule-resources:
           - com.yupi.springbootinit.controller
+zapi:
+  client:
+    access-key: zlz
+    secret-key: zlzAdmin

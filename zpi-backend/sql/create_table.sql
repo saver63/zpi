@@ -76,6 +76,7 @@ CREATE TABLE if not exists interface_info
     `description`     varchar(256) comment '描述',
     `url`             VARCHAR(512) NOT NULL COMMENT '接口地址',
     `method`          VARCHAR(256) NOT NULL COMMENT '请求类型',
+    `requestParams`   text NOT NULL COMMENT '请求参数',
     `requestHeader`   TEXT comment '请求头',
     `responseHeader`  TEXT comment '响应头',
     `interfaceStatus` TINYINT      NOT NULL COMMENT '接口状态',

@@ -3,6 +3,7 @@ package com.yupi.springbootinit.service.impl;
 import static com.yupi.springbootinit.constant.UserConstant.USER_LOGIN_STATE;
 
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.RandomUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.yupi.springbootinit.common.ErrorCode;
@@ -68,8 +69,16 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             }
             // 2. 加密
             String encryptPassword = DigestUtils.md5DigestAsHex((SALT + userPassword).getBytes());
-            // 3. 插入数据
+
+            //3.分配accessKey,secretKey
+            String accessKey = DigestUtils.md5DigestAsHex((SALT+userAccount+ RandomUtil.randomNumbers(5)).getBytes());
+            String secretKey = DigestUtils.md5DigestAsHex((SALT+userAccount+ RandomUtil.randomNumbers(8)).getBytes());
+
+
+            // 4. 插入数据
             User user = new User();
+            user.setAccessKey(accessKey);
+            user.setSecretKey(secretKey);
             user.setUserAccount(userAccount);
             user.setUserPassword(encryptPassword);
             boolean saveResult = this.save(user);

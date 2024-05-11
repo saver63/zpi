@@ -1,30 +1,31 @@
 package com.yupi.springbootinit.controller;
 
-import cn.hutool.json.JSONUtil;
+import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.google.gson.Gson;
 import com.yupi.springbootinit.annotation.AuthCheck;
-import com.yupi.springbootinit.common.BaseResponse;
-import com.yupi.springbootinit.common.DeleteRequest;
-import com.yupi.springbootinit.common.ErrorCode;
-import com.yupi.springbootinit.common.ResultUtils;
+import com.yupi.springbootinit.common.*;
 import com.yupi.springbootinit.constant.UserConstant;
 import com.yupi.springbootinit.exception.BusinessException;
 import com.yupi.springbootinit.exception.ThrowUtils;
 import com.yupi.springbootinit.model.dto.interfaceInfo.InterfaceInfoAddRequest;
+import com.yupi.springbootinit.model.dto.interfaceInfo.InterfaceInfoInvokeRequest;
 import com.yupi.springbootinit.model.dto.interfaceInfo.InterfaceInfoQueryRequest;
 import com.yupi.springbootinit.model.dto.interfaceInfo.InterfaceInfoUpdateRequest;
 import com.yupi.springbootinit.model.entity.InterfaceInfo;
 import com.yupi.springbootinit.model.entity.User;
+import com.yupi.springbootinit.model.enums.InterfaceInfoStatusEnum;
 import com.yupi.springbootinit.model.vo.InterfaceInfoVO;
 import com.yupi.springbootinit.service.InterfaceInfoService;
 import com.yupi.springbootinit.service.UserService;
+import com.zlz.zapiclientsdk.client.ZpiClient;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-import java.util.List;
 
 /**
  * 帖子接口
@@ -42,6 +43,9 @@ public class InterfaceInfoController {
 
     @Resource
     private UserService userService;
+
+    @Resource
+    private ZpiClient zpiClient;
 
     // region 增删改查
 
@@ -196,6 +200,111 @@ public class InterfaceInfoController {
 
     // endregion
 
+    /**
+     * 上线
+     *
+     * @param idRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/online")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> onlineInterfaceInfo(@RequestBody IdRequest idRequest, HttpServletRequest request) {
 
+        if (idRequest == null || idRequest.getId() <= 0){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+
+        long id = idRequest.getId();
+        //判断接口是否存在
+        InterfaceInfo oldInterfaceInfo = interfaceInfoService.getById(id);
+        ThrowUtils.throwIf(oldInterfaceInfo == null, ErrorCode.NOT_FOUND_ERROR);
+
+        //判断该接口是否可以调用
+        com.zlz.zapiclientsdk.model.User user = new com.zlz.zapiclientsdk.model.User();
+        user.setUsername("test");
+        String username = zpiClient.getUsernameByPost(user);
+        if (StrUtil.isBlank(username)){
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR,"接口验证失败");
+        }
+
+        // 判断是否存在
+        InterfaceInfo interfaceInfo = new InterfaceInfo();
+        interfaceInfo.setId(id);
+        interfaceInfo.setStatus(InterfaceInfoStatusEnum.ONLINE.getValue());
+
+        boolean result = interfaceInfoService.updateById(interfaceInfo);
+        return ResultUtils.success(result);
+    }
+
+    /**
+     * 下线
+     *
+     * @param idRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/offline")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> offlineInterfaceInfo(@RequestBody IdRequest idRequest,HttpServletRequest request) {
+        if (idRequest == null || idRequest.getId() <= 0){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+
+        long id = idRequest.getId();
+        //判断接口是否存在
+        InterfaceInfo oldInterfaceInfo = interfaceInfoService.getById(id);
+        ThrowUtils.throwIf(oldInterfaceInfo == null, ErrorCode.NOT_FOUND_ERROR);
+
+
+        //仅本人或者管理也可修改
+        InterfaceInfo interfaceInfo = new InterfaceInfo();
+        interfaceInfo.setId(id);
+        interfaceInfo.setStatus(InterfaceInfoStatusEnum.OFFLINE.getValue());
+
+        boolean result = interfaceInfoService.updateById(interfaceInfo);
+        return ResultUtils.success(result);
+    }
+
+
+    /**
+     * 测试调用
+     *
+     * @param idRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/invoke")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Object> offlineInterfaceInfo(@RequestBody InterfaceInfoInvokeRequest interfaceInfoInvokeRequest, HttpServletRequest request) {
+        if (interfaceInfoInvokeRequest == null || interfaceInfoInvokeRequest.getId() <= 0){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+
+        long id = interfaceInfoInvokeRequest.getId();
+        String userRequestParams = interfaceInfoInvokeRequest.getRequestParams();
+        //判断接口是否存在
+        InterfaceInfo oldInterfaceInfo = interfaceInfoService.getById(id);
+        ThrowUtils.throwIf(oldInterfaceInfo == null, ErrorCode.NOT_FOUND_ERROR);
+        ThrowUtils.throwIf(oldInterfaceInfo.getStatus()=== InterfaceInfoStatusEnum.OFFLINE.getValue(), ErrorCode.SYSTEM_ERROR,"接口已下线");
+
+       //调用接口
+        //先获取用户ak和sk
+        User loginUser = userService.getLoginUser(request);
+        String accessKey = loginUser.getAccessKey();
+        String secretKey = loginUser.getSecretKey();
+        //要把用户的ak和sk传过来，否则就是一直调用管理员的ak,sk
+        ZpiClient tempClient = new ZpiClient(accessKey,secretKey);
+
+        //测试调用
+        //把用户传过来的参数转换成User.class
+        Gson gson = new Gson();
+        com.zlz.zapiclientsdk.model.User user = gson.fromJson(userRequestParams, com.zlz.zapiclientsdk.model.User.class);
+
+        //直接把调用的接口写死，后续要优化成根据不同的地址调用不同的方法
+        String usernameByPost = tempClient.getUsernameByPost(user);
+
+        return ResultUtils.success(usernameByPost);
+    }
 
 }
